@@ -30,7 +30,7 @@ describe("F-NFT", async () => {
     await expect(nftOwner).to.equals(minter.address);
   });
 
-  it("Should set ERC20 token is the operator for the NFT", async () => {
+  it("Should set ERC20 token as the operator for the NFT", async () => {
     await nftContract
       .connect(minter)
       .setApprovalForAll(fTokenContract.address, true);
