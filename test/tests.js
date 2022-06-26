@@ -38,7 +38,7 @@ describe("F-NFT", async () => {
       minter.address,
       fTokenContract.address
     );
-    expect(isApproved).to.be.true;
+    expect(isApproved).to.equals(true);
   });
 
   it("Fractionalizes NFT and gives 10,00,000 erc20 tokens to the owner", async () => {
@@ -64,7 +64,7 @@ describe("F-NFT", async () => {
       .putForSale(ethers.utils.parseEther("10"));
     const forSale = await fTokenContract.forSale();
     const price = await fTokenContract.salePrice();
-    expect(forSale).to.be.true;
+    expect(forSale).to.equals(true);
     expect(price).to.equals(salePrice.toString());
   });
 
