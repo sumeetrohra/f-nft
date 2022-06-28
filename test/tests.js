@@ -2,13 +2,14 @@ const { expect, assert } = require("chai");
 const { ethers } = require("hardhat");
 
 describe("F-NFT", async () => {
-  let minter, buyer, nftContract, fTokenContract;
+  let minter, buyer, nftContract, fTokenContract, receiver;
   const tokenId = 1;
 
   before(async () => {
     let signers = await ethers.getSigners();
     minter = signers[0];
     buyer = signers[1];
+    receiver = signers[2];
     const NFT = await ethers.getContractFactory("MyNFT");
     nftContract = await NFT.connect(minter).deploy();
     await nftContract.deployed();
@@ -41,12 +42,26 @@ describe("F-NFT", async () => {
     expect(isApproved).to.equals(true);
   });
 
-  it("Fractionalizes NFT and gives 10,00,000 erc20 tokens to the owner", async () => {
+  it("Fractionalizes NFT and gives 10,00,000 erc20 tokens to the minter", async () => {
     await fTokenContract.initialize(nftContract.address, tokenId);
     const erc20Bal = await fTokenContract.balanceOf(minter.address);
+    expect(erc20Bal).to.equals(1000000);
+
     const nftOwner = await nftContract.ownerOf(tokenId);
     expect(nftOwner).to.equals(fTokenContract.address);
-    expect(erc20Bal).to.equals(1000000);
+  });
+
+  it("Minter can transfer half tokens to receiver", async () => {
+    await fTokenContract.transfer(receiver.address, 500000);
+    const bal = await fTokenContract.balanceOf(receiver.address);
+    expect(bal).to.equals(500000);
+  });
+
+  it("Contract balance should be 0", async () => {
+    const contractBal = await ethers.provider.getBalance(
+      fTokenContract.address
+    );
+    expect(contractBal).to.equals(0);
   });
 
   it("No one can purchase, if its not put for sale", async () => {
@@ -76,34 +91,64 @@ describe("F-NFT", async () => {
     ).to.be.revertedWith("Not enough ethers sent");
   });
 
-  it("Buyer gets the NFT Token and the seller has the 10,00,000 ERC20 Tokens to redeem for 10 ethers later if it pays more than or equal to 10 ethers", async () => {
+  it("Buyer can purchase the NFT for 10 ethers or more", async () => {
     const tx = await fTokenContract
       .connect(buyer)
       .purchase({ value: ethers.utils.parseEther("10") });
     const nftOwner = await nftContract.ownerOf(1);
     const buyerErc20Bal = await fTokenContract.balanceOf(buyer.address);
-    const minterErc20Bal = await fTokenContract.balanceOf(minter.address);
     const etherBalanceOfTokenContract = await ethers.provider.getBalance(
       fTokenContract.address
     );
     expect(etherBalanceOfTokenContract).to.equals("10000000000000000000");
     expect(nftOwner).to.equals(buyer.address);
     expect(buyerErc20Bal).to.equals(0);
-    expect(minterErc20Bal).to.equals(1000000);
   });
 
-  it("Minter can redeem erc20 tokens for 10 ethers", async () => {
-    const initial = (
+  it("Contract balance after purchase should be 10 ethers", async () => {
+    const contractBal = await ethers.provider
+      .getBalance(fTokenContract.address)
+      .then((data) => data.toString());
+    expect(contractBal.slice(0, contractBal.length - 18)).to.equals("10");
+  });
+
+  it("Minter can redeem remaining half erc20 tokens for 5 ethers", async () => {
+    const initialMinter = (
       await ethers.provider.getBalance(minter.address)
     ).toString();
-    const iniBal = Number(initial.slice(0, initial.length - 18));
+    const initMinterBal = Number(
+      initialMinter.slice(0, initialMinter.length - 18)
+    );
 
-    await expect(fTokenContract.connect(minter).redeem(1000000)).to.not.be
+    await expect(fTokenContract.connect(minter).redeem(500000)).to.not.be
       .reverted;
 
-    const final = (await ethers.provider.getBalance(minter.address)).toString();
-    const finBal = Number(final.slice(0, final.length - 18));
+    const finalMinter = (
+      await ethers.provider.getBalance(minter.address)
+    ).toString();
+    const finMinterBal = Number(finalMinter.slice(0, finalMinter.length - 18));
 
-    expect(finBal).to.equals(iniBal + 10);
+    expect(finMinterBal).to.equals(initMinterBal + 5);
+  });
+
+  it("Receiver can redeem the other half erc20 tokens for 5 ethers", async () => {
+    const initialReceiver = (
+      await ethers.provider.getBalance(receiver.address)
+    ).toString();
+    const initReceiverBal = Number(
+      initialReceiver.slice(0, initialReceiver.length - 18)
+    );
+
+    await expect(fTokenContract.connect(receiver).redeem(500000)).to.not.be
+      .reverted;
+
+    const finalReceiver = (
+      await ethers.provider.getBalance(receiver.address)
+    ).toString();
+    const finalReceiverBal = Number(
+      finalReceiver.slice(0, finalReceiver.length - 18)
+    );
+
+    expect(finalReceiverBal).to.greaterThanOrEqual(initReceiverBal + 4);
   });
 });

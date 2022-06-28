@@ -27,6 +27,7 @@ contract FToken is ERC20, Ownable, ERC20Permit, ERC721Holder {
     }
 
     function putForSale(uint256 price) external onlyOwner {
+        require(price > 0, "Price cannot be 0 or less than 0");
         salePrice = price;
         forSale = true;
     }
@@ -39,7 +40,7 @@ contract FToken is ERC20, Ownable, ERC20Permit, ERC721Holder {
         collection.safeTransferFrom(address(this), msg.sender, tokenId);
     }
 
-    function redeem(uint256 _amount) external onlyOwner {
+    function redeem(uint256 _amount) external {
         require(canRedeem, "Redemption not available");
         uint256 totalEthers = address(this).balance;
         uint256 toRedeem = _amount * totalEthers / totalSupply();
